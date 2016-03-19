@@ -1,0 +1,8 @@
+2016-03-19 15:02:15,556 - [WARN] - from org.deeplearning4j.optimize.solvers.BaseOptimizer in main
+                
+Objective function automatically set to minimize. Set stepFunction in neural net configuration to change default settings.
+
+2016-03-19 15:02:20,235 - [INFO] - from org.deeplearning4j.optimize.listeners.ScoreIterationListener in main
+                
+Score at iteration 0 is 434.3965849144459
+
