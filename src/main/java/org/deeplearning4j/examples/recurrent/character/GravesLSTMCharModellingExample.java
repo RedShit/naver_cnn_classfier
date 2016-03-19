@@ -104,7 +104,7 @@ public class GravesLSTMCharModellingExample {
 		
 		//Do training, and then generate and print samples from network
 		for( int i=0; i<numEpochs; i++ ){
-			net.fit(iter);
+			
 			
 			System.out.println("--------------------");
 			System.out.println("Completed epoch " + i );
@@ -115,7 +115,7 @@ public class GravesLSTMCharModellingExample {
 				System.out.println(samples[j]);
 				System.out.println();
 			}
-			
+			net.fit(iter);
 			iter.reset();	//Reset iterator for another epoch
 		}
 		
