@@ -57,8 +57,6 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
-import com.thinkingmaze.imagedocument.Iaprtc12Loader;
-
 public class Image2Vector {
 	
 	private static final Logger log = LoggerFactory.getLogger(Image2Vector.class);
@@ -74,12 +72,12 @@ public class Image2Vector {
 		final int width = 28;
         final int height = 28;
         final int nChannels = 3;
-        int batchSize = 20;
+        int batchSize = 1;
         int epochs =10;
         int iterations = 1;
         int seed = 2234;
         int exampleLength = 100;
-        int numExamplesToFetch = 50 * batchSize;
+        int numExamplesToFetch = 18000;
         int numSamples = 1;
         List<INDArray> testInput = new ArrayList<>();
         List<INDArray> testLabels = new ArrayList<>();
