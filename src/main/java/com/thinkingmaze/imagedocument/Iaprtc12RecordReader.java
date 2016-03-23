@@ -76,6 +76,7 @@ public class Iaprtc12RecordReader extends BaseImageRecordReader{
             Collection<Writable> ret = new ArrayList<>();
             File image = (File) iter.next();
             String vectorPath = image.getPath().replaceAll(".jpg", ".vec");
+            String descriptionPath = image.getPath().replaceAll(".jpg", ".des");
             currentFile = image;
             if(image.isDirectory())
                 return next();
@@ -85,6 +86,10 @@ public class Iaprtc12RecordReader extends BaseImageRecordReader{
                 INDArray row = imageLoader.asRowVector(bimg);
                 ret = RecordConverter.toRecord(row);
             	Scanner sin = new Scanner(new FileInputStream(new File(vectorPath)));
+            	while(sin.hasNext()){
+            		ret.add(new DoubleWritable(sin.nextDouble()));
+            	}
+            	sin = new Scanner(new FileInputStream(new File(descriptionPath)));
             	String description = sin.nextLine();
             	for(char c : description.toCharArray()){
             		if (charToIdxMap.keySet().contains(c) == false) continue;
@@ -94,19 +99,6 @@ public class Iaprtc12RecordReader extends BaseImageRecordReader{
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            if(iter.hasNext()) {
-                return ret;
-            }
-            else {
-                if(iter.hasNext()) {
-                    try {
-                        ret.add(new Text(FileUtils.readFileToString((File) iter.next())));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            System.out.println(ret.toString());
             return ret;
         }
         else if(record != null) {

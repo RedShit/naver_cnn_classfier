@@ -3,8 +3,7 @@ package com.thinkingmaze.imagedocument;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -12,7 +11,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 
-import org.canova.api.io.converters.WritableConverterException;
 import org.canova.api.records.reader.RecordReader;
 import org.canova.api.split.InputSplit;
 import org.canova.api.split.LimitFileSplit;
@@ -34,29 +32,28 @@ import org.nd4j.linalg.factory.Nd4j;
  */
 public class ImageIterator implements DataSetIterator {
 	private static final long serialVersionUID = -7287833919126626356L;
-	private static final int MAX_SCAN_LENGTH = 200; 
 	private char[] validCharacters;
 	private Map<Character,Integer> charToIdxMap;
-	private char[] fileCharacters;
 	private int exampleLength;
 	private int numExamplesToFetch;
 	private int miniBatchSize;
 	private int examplesSoFar = 0;
+	private int examplesPerEpoch;
 	private Random rng;
 	private final int numCharacters;
 	
 	private RecordReader recordReader;
-	private List<Writable> currList;
-	private int width = 28;
-	private int height = 28;
-	private int channels = 3;
+	private ArrayList<List<Writable>> currList;
+	private int width = 1;
+	private int height = 1;
+	private int channels = 1;
 	private boolean appendLabel = false;
 	private final String regexPattern = ".[#]+";
 	public static final String[] ALLOWED_FORMATS = {"tif", "jpg", "png", "jpeg", "bmp", "JPEG", "JPG", "TIF", "PNG"};
 	
 	
-	public ImageIterator(String path, int miniBatchSize, int exampleSize, int numExamplesToFetch ) throws IOException {
-		this(path,Charset.defaultCharset(),miniBatchSize,exampleSize,numExamplesToFetch,getDefaultCharacterSet(), new Random());
+	public ImageIterator(String path, int miniBatchSize, int exampleSize, int numExamplesToFetch, int examplesPerEpoch ) throws IOException {
+		this(path,Charset.defaultCharset(),miniBatchSize,exampleSize,numExamplesToFetch,examplesPerEpoch,getDefaultCharacterSet(), new Random());
 	}
 	
 	/**
@@ -71,13 +68,15 @@ public class ImageIterator implements DataSetIterator {
 	 * @throws IOException If text file cannot  be loaded
 	 */
 	public ImageIterator(String textFilePath, Charset textFileEncoding, int miniBatchSize, int exampleLength, int numExamplesToFetch,
-			char[] validCharacters, Random rng ) throws IOException {
+			int examplesPerEpoch, char[] validCharacters, Random rng ) throws IOException {
 		if( !new File(textFilePath).exists()) throw new IOException("Could not access file (does not exist): " + textFilePath);
 		if( miniBatchSize <= 0 ) throw new IllegalArgumentException("Invalid miniBatchSize (must be >0)");
 		this.validCharacters = validCharacters;
 		this.exampleLength = exampleLength;
 		this.miniBatchSize = miniBatchSize;
+		this.examplesPerEpoch = examplesPerEpoch;
 		this.numExamplesToFetch = numExamplesToFetch;
+		this.examplesSoFar = 0;
 		this.rng = rng;
 		
 		//Store valid characters is a map for later use in vectorization
@@ -93,6 +92,11 @@ public class ImageIterator implements DataSetIterator {
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
+		
+		this.currList = new ArrayList<List<Writable>>();
+		while(recordReader.hasNext()){
+			currList.add((List<Writable>) recordReader.next());
+		}
 	}
 	
 	/** A minimal character set, with a-z, A-Z, 0-9 and common punctuation etc */
@@ -135,36 +139,44 @@ public class ImageIterator implements DataSetIterator {
 	}
 
 	public boolean hasNext() {
-		return recordReader.hasNext();
+		return examplesSoFar + miniBatchSize <= examplesPerEpoch;
 	}
 
 
-	public DataSet next() {
-		if( recordReader.hasNext() == false ) throw new NoSuchElementException();
+	public DataSet next(int num) {
+		if( examplesSoFar + miniBatchSize > examplesPerEpoch ) throw new NoSuchElementException();
 		//Allocate space:
-		currList = (List<Writable>) recordReader.next();
 		
 		int imageV = width * height * channels;
-		int exampleLength = currList.size() - imageV;
-		INDArray input = Nd4j.zeros(exampleLength, imageV);
-		INDArray labels = Nd4j.zeros(exampleLength, numCharacters);
+		int featureLength = 77;
+		int preChar = 0;
+		INDArray input = Nd4j.zeros(num, featureLength, numExamplesToFetch);
+		INDArray labels = Nd4j.zeros(num, numCharacters, numExamplesToFetch);
 		
-		for (int i = 0; i < exampleLength; i++){
-			for (int j = 0; j < currList.size(); j++) {
-	            Writable current = currList.get(j);
-	            if (current.toString().isEmpty())
-	                continue;
-	            if (imageV >= 0 && j >= imageV) {
-	            	if (j - imageV != i) continue;
-	                labels.putScalar(new int[]{i, current.toInt()}, 1);
-	                break;
-	            } else {
-	            	input.putScalar(new int[]{i, j}, current.toDouble());
-	            }
-	        }
+		for (int i = 0; i < num; i++){
+			int idx = (int) (rng.nextDouble()* currList.size()) ;
+			List<Writable> imageAndDescription = currList.get(idx);
+			for (int j = 0; j<numExamplesToFetch && j+featureLength+imageV<imageAndDescription.size(); j++){
+				if (j == 0){
+					for (int k = 0; k < featureLength; k++){
+						Writable current = imageAndDescription.get(k+imageV);
+						input.putScalar(new int[]{i, k, j}, current.toDouble());
+					}
+					Writable current = imageAndDescription.get(featureLength+imageV+j);
+					labels.putScalar(new int[]{i, current.toInt(), j}, 1);
+					preChar = current.toInt();
+				}
+				else{
+					input.putScalar(new int[]{i, preChar, j}, 1.0f);
+					Writable current = imageAndDescription.get(featureLength+imageV+j);
+					labels.putScalar(new int[]{i, current.toInt(), j}, 1.0f);
+					preChar = current.toInt();
+				}
+			}
 		}
+		examplesSoFar += miniBatchSize;
 		DataSet ret = new DataSet(input,labels);
-		ret.scale();
+		
 		return ret;
 	}
 
@@ -178,7 +190,7 @@ public class ImageIterator implements DataSetIterator {
 	}
 
 	public void reset() {
-		recordReader.reset();
+		examplesSoFar = 0;
 	}
 
 	public int batch() {
@@ -208,8 +220,8 @@ public class ImageIterator implements DataSetIterator {
 	}
 
 	@Override
-	public DataSet next(int num) {
-		throw new UnsupportedOperationException("next(int num) Not implemented");
+	public DataSet next() {
+		return next(miniBatchSize);
 	}
 
 	@Override

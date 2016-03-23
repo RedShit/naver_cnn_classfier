@@ -60,46 +60,30 @@ public class NaverNet5 {
         SubsamplingLayer.PoolingType poolingType = SubsamplingLayer.PoolingType.MAX;
 
         // TODO split and link kernel maps on GPUs - 2nd, 4th, 5th convolution should only connect maps on the same gpu, 3rd connects to all in 2nd
-        MultiLayerConfiguration.Builder conf = new NeuralNetConfiguration.Builder()
-                .seed(seed)
-                .iterations(iterations)
-                .learningRate(0.1)
-                .rmsDecay(0.95)
-    			.seed(12345)
-    			.regularization(true)
-    			.l2(0.001)
-                .weightInit(WeightInit.XAVIER)
-                .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
-                .updater(Updater.NESTEROVS).momentum(0.9)
-                .list(6)
-                .layer(0, new ConvolutionLayer.Builder(5, 5)
-                        .nIn(channels)
-                        .stride(1, 1)
-                        .nOut(20).dropOut(0.5)
-                        .activation("sigmoid")
-                        .build())
-                .layer(1, new SubsamplingLayer.Builder(SubsamplingLayer.PoolingType.MAX)
-                        .kernelSize(2,2)
-                        .stride(2,2)
-                        .build())
-                .layer(2, new DenseLayer.Builder().activation("sigmoid")
-                        .nOut(100).build())
-                .layer(3, new GravesLSTM.Builder().nIn(100).nOut(lstmLayerSize)
-    					.updater(Updater.RMSPROP)
-    					.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
-    					.dist(new UniformDistribution(-0.08, 0.08)).build())
-    			.layer(4, new GravesLSTM.Builder().nIn(lstmLayerSize).nOut(lstmLayerSize)
-    					.updater(Updater.RMSPROP)
-    					.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
-    					.dist(new UniformDistribution(-0.08, 0.08)).build())
-    			.layer(5, new RnnOutputLayer.Builder(LossFunction.MCXENT).activation("softmax")        //MCXENT + softmax for classification
-    					.updater(Updater.RMSPROP)
-    					.nIn(lstmLayerSize).nOut(nOut).weightInit(WeightInit.DISTRIBUTION)
-    					.dist(new UniformDistribution(-0.08, 0.08)).build())
-                .backprop(true).pretrain(false);
-        new ConvolutionLayerSetup(conf, height, width, channels);
+        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+				.optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
+				.learningRate(0.1)
+				.rmsDecay(0.95)
+				.seed(12345)
+				.regularization(true)
+				.l2(0.001)
+				.list(3)
+				.layer(0, new GravesLSTM.Builder().nIn(77).nOut(lstmLayerSize)
+						.updater(Updater.RMSPROP)
+						.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
+						.dist(new UniformDistribution(-0.08, 0.08)).build())
+				.layer(1, new GravesLSTM.Builder().nIn(lstmLayerSize).nOut(lstmLayerSize)
+						.updater(Updater.RMSPROP)
+						.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
+						.dist(new UniformDistribution(-0.08, 0.08)).build())
+				.layer(2, new RnnOutputLayer.Builder(LossFunction.MCXENT).activation("softmax")        //MCXENT + softmax for classification
+						.updater(Updater.RMSPROP)
+						.nIn(lstmLayerSize).nOut(nOut).weightInit(WeightInit.DISTRIBUTION)
+						.dist(new UniformDistribution(-0.08, 0.08)).build())
+				.pretrain(false).backprop(true)
+				.build();
         
-        return conf.build();
+        return conf;
     }
 
     public MultiLayerNetwork init(){

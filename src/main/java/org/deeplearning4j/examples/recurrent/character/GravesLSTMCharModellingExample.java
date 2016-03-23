@@ -4,11 +4,13 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Random;
 
 import org.apache.commons.io.FileUtils;
 import org.deeplearning4j.nn.api.Layer;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
+import org.deeplearning4j.nn.conf.InputPreProcessor;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.Updater;
@@ -19,6 +21,7 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.dataset.api.DataSet;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction;
 
@@ -51,7 +54,7 @@ public class GravesLSTMCharModellingExample {
 		int miniBatchSize = 32;						//Size of mini batch to use when  training
 		int examplesPerEpoch = 50 * miniBatchSize;	//i.e., how many examples to learn on between generating samples
 		int exampleLength = 100;					//Length of each training example
-		int numEpochs = 300;							//Total number of training + sample generation epochs
+		int numEpochs = 30;							//Total number of training + sample generation epochs
 		int nSamplesToGenerate = 4;					//Number of samples to generate after each training epoch
 		int nCharactersToSample = 300;				//Length of each sample to generate
 		String generationInitialization = null;		//Optional character initialization; a random character is used if null
@@ -104,8 +107,7 @@ public class GravesLSTMCharModellingExample {
 		
 		//Do training, and then generate and print samples from network
 		for( int i=0; i<numEpochs; i++ ){
-			
-			
+			net.fit(iter);
 			System.out.println("--------------------");
 			System.out.println("Completed epoch " + i );
 			System.out.println("Sampling characters from network given initialization \"" + ("") + "\"");
@@ -115,7 +117,7 @@ public class GravesLSTMCharModellingExample {
 				System.out.println(samples[j]);
 				System.out.println();
 			}
-			net.fit(iter);
+			
 			iter.reset();	//Reset iterator for another epoch
 		}
 		
@@ -135,6 +137,7 @@ public class GravesLSTMCharModellingExample {
 		String url = "https://s3.amazonaws.com/dl4j-distribution/pg100.txt";
 		String tempDir = System.getProperty("java.io.tmpdir");
 		String fileLocation = tempDir + "/Shakespeare.txt";	//Storage location from downloaded file
+		fileLocation = "D:/MyEclipse/iaprtc12/des.txt";
 		File f = new File(fileLocation);
 		if( !f.exists() ){
 			FileUtils.copyURLToFile(new URL(url), f);
@@ -181,6 +184,8 @@ public class GravesLSTMCharModellingExample {
 		//Sample from network (and feed samples back into input) one character at a time (for all samples)
 		//Sampling is done in parallel here
 		net.rnnClearPreviousState();
+		MultiLayerConfiguration mc = net.getLayerWiseConfigurations();
+		InputPreProcessor ipp = mc.getInputPreProcess(0);
 		INDArray output = net.rnnTimeStep(initializationInput);
 		output = output.tensorAlongDimension(output.size(2)-1,1,0);	//Gets the last time step output
 		
@@ -192,6 +197,7 @@ public class GravesLSTMCharModellingExample {
 				double[] outputProbDistribution = new double[iter.totalOutcomes()];
 				for( int j=0; j<outputProbDistribution.length; j++ ) outputProbDistribution[j] = output.getDouble(s,j);
 				int sampledCharacterIdx = sampleFromDistribution(outputProbDistribution,rng);
+				//System.out.println(Arrays.toString(outputProbDistribution));
 				
 				nextInput.putScalar(new int[]{s,sampledCharacterIdx}, 1.0f);		//Prepare next time step input
 				sb[s].append(iter.convertIndexToCharacter(sampledCharacterIdx));	//Add sampled character to StringBuilder (human readable output)
