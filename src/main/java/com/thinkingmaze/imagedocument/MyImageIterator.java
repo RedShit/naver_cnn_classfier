@@ -30,7 +30,7 @@ import org.nd4j.linalg.factory.Nd4j;
  * Feature vectors and labels are both one-hot vectors of same length
  * @author Alex Black
  */
-public class ImageIterator implements DataSetIterator {
+public class MyImageIterator implements DataSetIterator {
 	private static final long serialVersionUID = -7287833919126626356L;
 	private char[] validCharacters;
 	private Map<Character,Integer> charToIdxMap;
@@ -52,7 +52,7 @@ public class ImageIterator implements DataSetIterator {
 	public static final String[] ALLOWED_FORMATS = {"tif", "jpg", "png", "jpeg", "bmp", "JPEG", "JPG", "TIF", "PNG"};
 	
 	
-	public ImageIterator(String path, int miniBatchSize, int exampleSize, int numExamplesToFetch, int examplesPerEpoch ) throws IOException {
+	public MyImageIterator(String path, int miniBatchSize, int exampleSize, int numExamplesToFetch, int examplesPerEpoch ) throws IOException {
 		this(path,Charset.defaultCharset(),miniBatchSize,exampleSize,numExamplesToFetch,examplesPerEpoch,getDefaultCharacterSet(), new Random());
 	}
 	
@@ -67,7 +67,7 @@ public class ImageIterator implements DataSetIterator {
 	 *  of no new line characters, to avoid scanning entire file)
 	 * @throws IOException If text file cannot  be loaded
 	 */
-	public ImageIterator(String textFilePath, Charset textFileEncoding, int miniBatchSize, int exampleLength, int numExamplesToFetch,
+	public MyImageIterator(String textFilePath, Charset textFileEncoding, int miniBatchSize, int exampleLength, int numExamplesToFetch,
 			int examplesPerEpoch, char[] validCharacters, Random rng ) throws IOException {
 		if( !new File(textFilePath).exists()) throw new IOException("Could not access file (does not exist): " + textFilePath);
 		if( miniBatchSize <= 0 ) throw new IllegalArgumentException("Invalid miniBatchSize (must be >0)");
@@ -150,28 +150,34 @@ public class ImageIterator implements DataSetIterator {
 		int imageV = width * height * channels;
 		int featureLength = 77;
 		int preChar = 0;
-		INDArray input = Nd4j.zeros(num, imageV, numExamplesToFetch);
-		INDArray labels = Nd4j.zeros(num, numCharacters, numExamplesToFetch);
+		INDArray input = Nd4j.zeros(num,numExamplesToFetch, imageV);
+		INDArray labels = Nd4j.zeros(num,numExamplesToFetch, numCharacters);
 		
 		for (int i = 0; i < num; i++){
 			int idx = (int) (rng.nextDouble()* currList.size()) ;
 			List<Writable> imageAndDescription = currList.get(idx);
 			for (int j = 0; j<numExamplesToFetch && j+featureLength+imageV<imageAndDescription.size(); j++){
-				if (j == 0){
-					for (int k = 0; k < featureLength; k++){
-						Writable current = imageAndDescription.get(k+imageV);
-						input.putScalar(new int[]{i, k, j}, current.toDouble());
-					}
-					Writable current = imageAndDescription.get(featureLength+imageV+j);
-					labels.putScalar(new int[]{i, current.toInt(), j}, 1);
-					preChar = current.toInt();
+				for (int k = 0; k < imageV; k++){
+					Writable current = imageAndDescription.get(k);
+					input.putScalar(new int[]{j, k}, current.toDouble());
 				}
-				else{
-					input.putScalar(new int[]{i, preChar, j}, 1.0f);
-					Writable current = imageAndDescription.get(featureLength+imageV+j);
-					labels.putScalar(new int[]{i, current.toInt(), j}, 1.0f);
-					preChar = current.toInt();
-				}
+				Writable current = imageAndDescription.get(featureLength+imageV+j);
+				labels.putScalar(new int[]{j, current.toInt()}, 1.0f);
+//				if (j == 0){
+//					for (int k = 0; k < featureLength; k++){
+//						Writable current = imageAndDescription.get(k+imageV);
+//						input.putScalar(new int[]{i, k, j}, current.toDouble());
+//					}
+//					Writable current = imageAndDescription.get(featureLength+imageV+j);
+//					labels.putScalar(new int[]{i, current.toInt(), j}, 1);
+//					preChar = current.toInt();
+//				}
+//				else{
+//					input.putScalar(new int[]{i, preChar, j}, 1.0f);
+//					Writable current = imageAndDescription.get(featureLength+imageV+j);
+//					labels.putScalar(new int[]{i, current.toInt(), j}, 1.0f);
+//					preChar = current.toInt();
+//				}
 			}
 		}
 		examplesSoFar += miniBatchSize;

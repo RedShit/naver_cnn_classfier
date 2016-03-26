@@ -1,91 +1,47 @@
 package com.thinkingmaze.imagedocument;
 
-import static org.nd4j.linalg.ops.transforms.Transforms.pow;
-import static org.nd4j.linalg.ops.transforms.Transforms.sqrt;
-
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.util.Scanner;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.commons.io.FileUtils;
-import org.canova.image.loader.LFWLoader;
-import org.deeplearning4j.datasets.iterator.DataSetIterator;
-import org.deeplearning4j.datasets.iterator.impl.LFWDataSetIterator;
-import org.deeplearning4j.eval.Evaluation;
-import org.deeplearning4j.examples.convolution.CNNLFWExample;
-import org.deeplearning4j.examples.recurrent.character.CharacterIterator;
-import org.deeplearning4j.nn.api.OptimizationAlgorithm;
-import org.deeplearning4j.nn.conf.GradientNormalization;
-import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
-import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
-import org.deeplearning4j.nn.conf.Updater;
-import org.deeplearning4j.nn.conf.layers.ConvolutionLayer;
-import org.deeplearning4j.nn.conf.layers.DenseLayer;
-import org.deeplearning4j.nn.conf.layers.OutputLayer;
-import org.deeplearning4j.nn.conf.layers.SubsamplingLayer;
-import org.deeplearning4j.nn.conf.layers.setup.ConvolutionLayerSetup;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
-import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.api.IterationListener;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dataset.DataSet;
-import org.nd4j.linalg.dataset.SplitTestAndTrain;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.lossfunctions.LossFunctions;
-import org.nd4j.linalg.ops.transforms.Transforms;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
-import org.xml.sax.SAXException;
 
-public class Image2Vector {
+public class MyImage2Text {
 	
-	private static final Logger log = LoggerFactory.getLogger(Image2Vector.class);
 	private static final DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
-	
-	private static double vectorLength(INDArray vec){
-		return pow(vec, 2).sum(1).sumNumber().doubleValue();
-	}
 	
 	@SuppressWarnings("deprecation")
 	public static void main(String[] args) throws Exception {
 		
-		final int width = 1;
-        final int height = 1;
-        final int nChannels = 1;
-        int batchSize = 32;
+		final int width = 28;
+        final int height = 28;
+        final int nChannels = 3;
+        int batchSize = 1;
         int epochs = 50;
         int iterations = 1;
         int seed = 2234;
-        int exampleLength = 200;
-        int examplesPerEpoch = batchSize * 5;
+        int exampleLength = 2000;
+        int examplesPerEpoch = batchSize * 5000;
         int numExamplesToFetch = 80;
         int numSamples = 1;
     	
         System.out.println("Load data....");
-    	ImageIterator iter = getShakespeareIterator(batchSize, exampleLength, numExamplesToFetch, examplesPerEpoch);
+    	MyImageIterator iter = getShakespeareIterator(batchSize, exampleLength, numExamplesToFetch, examplesPerEpoch);
     	
     	System.out.println("Build model....");
-        MultiLayerNetwork model = new NaverNet5(width, height, nChannels, iter.inputColumns(), seed, iterations).init();
+        MultiLayerNetwork model = new LeNet(width, height, nChannels, iter.inputColumns(), seed, iterations).init();
         
         System.out.println("Train model....");
         model.setListeners(Collections.singletonList((IterationListener) new ScoreIterationListener(1)));
@@ -117,13 +73,12 @@ public class Image2Vector {
 				descriptionFile.write("--------------------------------------------------\n");
 				descriptionFile.write(samples[j+numSamples] + "\n");
 			}
-			
         }
         descriptionFile.close();
 	}
 
 	private static String[] sampleCharactersFromNetwork(DataSet generationInitialization, MultiLayerNetwork model,
-			ImageIterator iter, Random random) {
+			MyImageIterator iter, Random random) {
 		// TODO Auto-generated method stub
 		INDArray initializationInput = (INDArray) generationInitialization.getFeatures();
 		INDArray initializationLabel = (INDArray) generationInitialization.getLabels();
@@ -178,7 +133,7 @@ public class Image2Vector {
 	 * @param exampleLength Number of characters in each text segment.
 	 * @param examplesPerEpoch Number of examples we want in an 'epoch'. 
 	 */
-	private static ImageIterator getShakespeareIterator(int miniBatchSize, int exampleLength, int numExamplesToFetch, int examplesPerEpoch) throws Exception{
+	private static MyImageIterator getShakespeareIterator(int miniBatchSize, int exampleLength, int numExamplesToFetch, int examplesPerEpoch) throws Exception{
 		//The Complete Works of William Shakespeare
 		//5.3MB file in UTF-8 Encoding, ~5.4 million characters
 		//https://www.gutenberg.org/ebooks/100
@@ -201,7 +156,7 @@ public class Image2Vector {
     	}
 
     	char[] validCharacters = ImageIterator.getMinimalCharacterSet();	//Which characters are allowed? Others will be removed
-		return new ImageIterator(fileLocation, Charset.forName("UTF-8"),
+		return new MyImageIterator(fileLocation, Charset.forName("UTF-8"),
 				miniBatchSize, exampleLength, numExamplesToFetch, examplesPerEpoch, validCharacters, new Random(12345));
 	}
 	

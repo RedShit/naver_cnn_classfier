@@ -33,7 +33,7 @@ import org.nd4j.linalg.ops.transforms.Transforms;
  *
  */
 @Deprecated
-public class NaverNet5 {
+public class CNNLSTMNet5 {
 
     private int height;
     private int width;
@@ -43,7 +43,7 @@ public class NaverNet5 {
     private int lstmLayerSize = 200;
     private int nOut = 100;
 
-    public NaverNet5(int height, int width, int channels, int nOut, long seed, int iterations) {
+    public CNNLSTMNet5(int height, int width, int channels, int nOut, long seed, int iterations) {
         // TODO consider ways to make this adaptable to other problems not just imagenet
         this.height = height;
         this.width = width;
@@ -57,30 +57,47 @@ public class NaverNet5 {
     public MultiLayerConfiguration conf() {
 
         // TODO split and link kernel maps on GPUs - 2nd, 4th, 5th convolution should only connect maps on the same gpu, 3rd connects to all in 2nd
-        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+    	MultiLayerConfiguration.Builder conf = new NeuralNetConfiguration.Builder()
 				.optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
 				.learningRate(0.1)
 				.rmsDecay(0.95)
 				.seed(12345)
 				.regularization(true)
 				.l2(0.001)
-				.list(3)
-				.layer(0, new GravesLSTM.Builder().nIn(77).nOut(lstmLayerSize)
+				.list(7)
+				.layer(0, new ConvolutionLayer.Builder(5, 5)
+                        .nIn(channels)
+                        .stride(1, 1)
+                        .nOut(20).dropOut(0.5)
+                        .activation("sigmoid")
+                        .build())
+                .layer(1, new SubsamplingLayer.Builder(SubsamplingLayer.PoolingType.MAX)
+                        .kernelSize(2,2)
+                        .stride(2,2)
+                        .build())
+                .layer(2, new DenseLayer.Builder().activation("sigmoid")
+                        .nOut(500).build())
+                .layer(3, new OutputLayer.Builder(LossFunctions.LossFunction.SQUARED_LOSS)
+                        .nOut(100)
+                        .activation("tanh")
+                        .build())
+				.layer(4, new GravesLSTM.Builder().nIn(100).nOut(lstmLayerSize)
 						.updater(Updater.RMSPROP)
 						.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
 						.dist(new UniformDistribution(-0.08, 0.08)).build())
-				.layer(1, new GravesLSTM.Builder().nIn(lstmLayerSize).nOut(lstmLayerSize)
+				.layer(5, new GravesLSTM.Builder().nIn(lstmLayerSize).nOut(lstmLayerSize)
 						.updater(Updater.RMSPROP)
 						.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
 						.dist(new UniformDistribution(-0.08, 0.08)).build())
-				.layer(2, new RnnOutputLayer.Builder(LossFunction.MCXENT).activation("softmax")        //MCXENT + softmax for classification
+				.layer(6, new RnnOutputLayer.Builder(LossFunction.MCXENT).activation("softmax")        //MCXENT + softmax for classification
 						.updater(Updater.RMSPROP)
 						.nIn(lstmLayerSize).nOut(nOut).weightInit(WeightInit.DISTRIBUTION)
 						.dist(new UniformDistribution(-0.08, 0.08)).build())
-				.pretrain(false).backprop(true)
-				.build();
+				.pretrain(false).backprop(true);
+				
+        new ConvolutionLayerSetup(conf, height, width, channels);
         
-        return conf;
+        return conf.build();
     }
 
     public MultiLayerNetwork init(){

@@ -56,7 +56,7 @@ public class GravesLSTMCharModellingExample {
 		int exampleLength = 100;					//Length of each training example
 		int numEpochs = 30;							//Total number of training + sample generation epochs
 		int nSamplesToGenerate = 4;					//Number of samples to generate after each training epoch
-		int nCharactersToSample = 300;				//Length of each sample to generate
+		int nCharactersToSample = 50;				//Length of each sample to generate
 		String generationInitialization = null;		//Optional character initialization; a random character is used if null
 		// Above is Used to 'prime' the LSTM with a character sequence to continue/complete.
 		// Initialization characters must all be in CharacterIterator.getMinimalCharacterSet() by default
