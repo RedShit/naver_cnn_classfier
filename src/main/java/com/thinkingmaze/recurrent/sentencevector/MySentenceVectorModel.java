@@ -1,12 +1,28 @@
 package com.thinkingmaze.recurrent.sentencevector;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.apache.commons.io.FileUtils;
+import org.canova.api.records.reader.RecordReader;
+import org.canova.api.split.InputSplit;
+import org.canova.api.split.LimitFileSplit;
+import org.canova.api.writable.Writable;
 import org.deeplearning4j.nn.api.Layer;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.InputPreProcessor;
@@ -19,90 +35,131 @@ import org.deeplearning4j.nn.conf.layers.GravesLSTM;
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
+import org.deeplearning4j.optimize.api.IterationListener;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.dataset.DataSet;
+import org.nd4j.linalg.dataset.api.DataSetPreProcessor;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+
+import com.thinkingmaze.imagedocument.Iaprtc12RecordReader;
+import com.thinkingmaze.imagedocument.Image2Text;
+import com.thinkingmaze.imagedocument.ImageIterator;
+import com.thinkingmaze.imagedocument.NaverNet5;
 
 public class MySentenceVectorModel {
-	public static void main( String[] args ) throws Exception {
-		int lstmLayerSize = 200;					//Number of units in each GravesLSTM layer
-		int vectorLength = 100;						//Length of word vector 
-		int miniBatchSize = 32;						//Size of mini batch to use when  training
-		int examplesPerEpoch = 50 * miniBatchSize;	//i.e., how many examples to learn on between generating samples
-		int exampleLength = 20000;					//Length of each training example
-		int numEpochs = 30;							//Total number of training + sample generation epochs
-		int nSamplesToGenerate = 4;					//Number of samples to generate after each training epoch
-		int nCharactersToSample = 50;				//Length of each sample to generate
-		String generationInitialization = null;		//Optional character initialization; a random character is used if null
-		// Above is Used to 'prime' the LSTM with a character sequence to continue/complete.
-		// Initialization characters must all be in CharacterIterator.getMinimalCharacterSet() by default
-		Random rng = new Random(12345);
+	private static final Logger log = LoggerFactory.getLogger(Image2Text.class);
+	private static final DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+	
+	@SuppressWarnings("deprecation")
+	public static void main(String[] args) throws Exception {
 		
-		//Get a DataSetIterator that handles vectorization of text into something we can use to train
-		// our GravesLSTM network.
-		CharacterIterator iter = getShakespeareIterator(miniBatchSize,exampleLength,examplesPerEpoch);
-		int nOut = iter.totalOutcomes();
-		
-		//Set up network configuration:
-		MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
-			.optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
-			.learningRate(0.1)
-			.rmsDecay(0.95)
-			.seed(12345)
-			.regularization(true)
-			.l2(0.001)
-			.list(4)
-			.layer(0, new DenseLayer.Builder().nIn(exampleLength+iter.inputColumns()).nOut(vectorLength)
-                    .weightInit(WeightInit.XAVIER)
-                    .activation("tanh")
-                    .build())
-			.layer(1, new GravesLSTM.Builder().nIn(vectorLength).nOut(lstmLayerSize)
-					.updater(Updater.RMSPROP)
-					.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
-					.dist(new UniformDistribution(-0.08, 0.08)).build())
-			.layer(2, new GravesLSTM.Builder().nIn(lstmLayerSize).nOut(lstmLayerSize)
-					.updater(Updater.RMSPROP)
-					.activation("tanh").weightInit(WeightInit.DISTRIBUTION)
-					.dist(new UniformDistribution(-0.08, 0.08)).build())
-			.layer(3, new RnnOutputLayer.Builder(LossFunction.MCXENT).activation("softmax")        //MCXENT + softmax for classification
-					.updater(Updater.RMSPROP)
-					.nIn(lstmLayerSize).nOut(nOut).weightInit(WeightInit.DISTRIBUTION)
-					.dist(new UniformDistribution(-0.08, 0.08)).build())
-			.pretrain(false).backprop(true)
-			.build();
-		
-		MultiLayerNetwork net = new MultiLayerNetwork(conf);
-		net.init();
-		net.setListeners(new ScoreIterationListener(1));
-		
-		//Print the  number of parameters in the network (and for each layer)
-		Layer[] layers = net.getLayers();
-		int totalNumParams = 0;
-		for( int i=0; i<layers.length; i++ ){
-			int nParams = layers[i].numParams();
-			System.out.println("Number of parameters in layer " + i + ": " + nParams);
-			totalNumParams += nParams;
-		}
-		System.out.println("Total number of network parameters: " + totalNumParams);
-		
-		//Do training, and then generate and print samples from network
-		for( int i=0; i<numEpochs; i++ ){
-			net.fit(iter);
-			System.out.println("--------------------");
-			System.out.println("Completed epoch " + i );
+		final int width = 1;
+        final int height = 1;
+        final int nChannels = 1;
+        int batchSize = 32;
+        int epochs = 50;
+        int iterations = 1;
+        int seed = 2234;
+        int exampleLength = 200;
+        int examplesPerEpoch = batchSize * 1000;
+        int numExamplesToFetch = 80;
+        int numSamples = 1;
+    	
+        System.out.println("Load data....");
+        Iaprtc12DescriptionIterator iter = getShakespeareIterator(batchSize, exampleLength, numExamplesToFetch, examplesPerEpoch);
+    	
+    	System.out.println("Build model....");
+        MultiLayerNetwork model = new MySentenceVectorLSTM(width, height, nChannels, 
+        		iter.inputColumns(), seed, iterations, iter.numExamples()+iter.inputColumns(), 100).init();
+        
+        System.out.println("Train model....");
+        model.setListeners(Collections.singletonList((IterationListener) new ScoreIterationListener(1)));
+        
+        OutputStreamWriter descriptionFile = new OutputStreamWriter(
+        		new FileOutputStream(new File("D:/MyEclipse/iaprtc12/descriptionFile.txt")));
+        
+        for (int epoch = 0; epoch < epochs; epoch++){
+        	iter.reset();
+        	model.fit(iter);
+        	iter.reset();
+        	DataSet generationInitialization = iter.next();
+        	String[] samples = sampleCharactersFromNetwork(generationInitialization,model,iter,new Random(12345));
+        	
+        	System.out.println("--------------------");
+			System.out.println("Training epoch " + epoch );
 			System.out.println("Sampling characters from network given initialization \"" + ("") + "\"");
-			String[] samples = sampleCharactersFromNetwork(generationInitialization,net,iter,rng,nCharactersToSample,nSamplesToGenerate);
-			for( int j=0; j<samples.length; j++ ){
+			descriptionFile.write("--------------------\nTraining epoch " + epoch + "\n");
+			
+			numSamples = samples.length/2;
+			for( int j=0; j<numSamples; j++ ){
 				System.out.println("----- Sample " + j + " -----");
 				System.out.println(samples[j]);
+				System.out.println("--------------------------------------------------");
+				System.out.println(samples[j+numSamples]);
 				System.out.println();
+				descriptionFile.write("----- Sample " + j + " -----" + "\n");
+				descriptionFile.write(samples[j] + "\n");
+				descriptionFile.write("--------------------------------------------------\n");
+				descriptionFile.write(samples[j+numSamples] + "\n");
 			}
 			
-			iter.reset();	//Reset iterator for another epoch
+        }
+        descriptionFile.close();
+	}
+
+	private static String[] sampleCharactersFromNetwork(DataSet generationInitialization, MultiLayerNetwork model,
+			Iaprtc12DescriptionIterator iter, Random random) {
+		// TODO Auto-generated method stub
+		INDArray initializationInput = (INDArray) generationInitialization.getFeatures();
+		INDArray initializationLabel = (INDArray) generationInitialization.getLabels();
+		int imagesToSample = generationInitialization.getLabels().size(0);
+		int numSamples = generationInitialization.getLabels().size(2);
+		int featureLength = 77;
+		
+		StringBuilder[] sb = new StringBuilder[imagesToSample*2];
+		for( int i=0; i<imagesToSample*2; i++ ) sb[i] = new StringBuilder();
+		
+		for( int i=0; i<imagesToSample; i++ ){
+			INDArray input = Nd4j.zeros(1, featureLength);
+			for(int j = 0; j < featureLength; j++){
+				input.putScalar(new int[]{0,j}, initializationInput.getDouble(i, j, 0));
+			}
+			model.rnnClearPreviousState();
+			INDArray output = model.rnnTimeStep(input);
+			//Set up next input (single time step) by sampling from previous output
+			
+			//Output is a probability distribution. Sample from this for each example we want to generate, and add it to the new input
+			for( int s=0; s<numSamples; s++ ){
+				double[] outputProbDistribution = new double[iter.totalOutcomes()];
+				for( int j=0; j<outputProbDistribution.length; j++ ) outputProbDistribution[j] = output.getDouble(j);
+				int sampledCharacterIdx = sampleFromDistribution(outputProbDistribution,random);
+				
+				INDArray nextInput = Nd4j.zeros(1, featureLength);
+				nextInput.putScalar(new int[]{0,sampledCharacterIdx}, 1.0f);		//Prepare next time step input
+				sb[i].append(iter.convertIndexToCharacter(sampledCharacterIdx));	//Add sampled character to StringBuilder (human readable output)
+				output = model.rnnTimeStep(nextInput);	//Do one time step of forward pass
+				
+				double[] labelProbDistribution = new double[iter.totalOutcomes()];
+				double sum = 0;
+				for( int j=0; j<labelProbDistribution.length; j++ ) {
+					labelProbDistribution[j] = initializationLabel.getDouble(i, j, s);
+					sum += labelProbDistribution[j];
+				}
+				if (sum < 0.5) continue;
+				int labelCharacterIdx = sampleFromDistribution(labelProbDistribution,random);
+				sb[i+imagesToSample].append(iter.convertIndexToCharacter(labelCharacterIdx));
+				
+			}
 		}
 		
-		System.out.println("\n\nExample complete");
+		String[] out = new String[imagesToSample*2];
+		for( int i=0; i<imagesToSample*2; i++ ) out[i] = sb[i].toString();
+		return out;
 	}
 
 	/** Downloads Shakespeare training data and stores it locally (temp directory). Then set up and return a simple
@@ -111,85 +168,31 @@ public class MySentenceVectorModel {
 	 * @param exampleLength Number of characters in each text segment.
 	 * @param examplesPerEpoch Number of examples we want in an 'epoch'. 
 	 */
-	private static CharacterIterator getShakespeareIterator(int miniBatchSize, int exampleLength, int examplesPerEpoch) throws Exception{
+	private static Iaprtc12DescriptionIterator getShakespeareIterator(int miniBatchSize, int exampleLength, int numExamplesToFetch, int examplesPerEpoch) throws Exception{
 		//The Complete Works of William Shakespeare
 		//5.3MB file in UTF-8 Encoding, ~5.4 million characters
 		//https://www.gutenberg.org/ebooks/100
-		String url = "https://s3.amazonaws.com/dl4j-distribution/pg100.txt";
-		String tempDir = System.getProperty("java.io.tmpdir");
-		String fileLocation = tempDir + "/Shakespeare.txt";	//Storage location from downloaded file
-		fileLocation = "D:/MyEclipse/iaprtc12/des.txt";
-		File f = new File(fileLocation);
-		if( !f.exists() ){
-			FileUtils.copyURLToFile(new URL(url), f);
-			System.out.println("File downloaded to " + f.getAbsolutePath());
-		} else {
-			System.out.println("Using existing text file at " + f.getAbsolutePath());
-		}
-		
-		if(!f.exists()) throw new IOException("File does not exist: " + fileLocation);	//Download problem?
-		
-		char[] validCharacters = CharacterIterator.getMinimalCharacterSet();	//Which characters are allowed? Others will be removed
-		return new CharacterIterator(fileLocation, Charset.forName("UTF-8"),
-				miniBatchSize, exampleLength, examplesPerEpoch, validCharacters, new Random(12345),true);
-	}
-	
-	/** Generate a sample from the network, given an (optional, possibly null) initialization. Initialization
-	 * can be used to 'prime' the RNN with a sequence you want to extend/continue.<br>
-	 * Note that the initalization is used for all samples
-	 * @param initialization String, may be null. If null, select a random character as initialization for all samples
-	 * @param charactersToSample Number of characters to sample from network (excluding initialization)
-	 * @param net MultiLayerNetwork with one or more GravesLSTM/RNN layers and a softmax output layer
-	 * @param iter CharacterIterator. Used for going from indexes back to characters
-	 */
-	private static String[] sampleCharactersFromNetwork( String initialization, MultiLayerNetwork net,
-			CharacterIterator iter, Random rng, int charactersToSample, int numSamples ){
-		//Set up initialization. If no initialization: use a random character
-		if( initialization == null ){
-			initialization = String.valueOf(iter.getRandomCharacter());
-		}
-		
-		//Create input for initialization
-		INDArray initializationInput = Nd4j.zeros(numSamples, iter.inputColumns(), initialization.length());
-		char[] init = initialization.toCharArray();
-		for( int i=0; i<init.length; i++ ){
-			int idx = iter.convertCharacterToIndex(init[i]);
-			for( int j=0; j<numSamples; j++ ){
-				initializationInput.putScalar(new int[]{j,idx,i}, 1.0f);
-			}
-		}
-		
-		StringBuilder[] sb = new StringBuilder[numSamples];
-		for( int i=0; i<numSamples; i++ ) sb[i] = new StringBuilder(initialization);
-		
-		//Sample from network (and feed samples back into input) one character at a time (for all samples)
-		//Sampling is done in parallel here
-		net.rnnClearPreviousState();
-		MultiLayerConfiguration mc = net.getLayerWiseConfigurations();
-		InputPreProcessor ipp = mc.getInputPreProcess(0);
-		INDArray output = net.rnnTimeStep(initializationInput);
-		output = output.tensorAlongDimension(output.size(2)-1,1,0);	//Gets the last time step output
-		
-		for( int i=0; i<charactersToSample; i++ ){
-			//Set up next input (single time step) by sampling from previous output
-			INDArray nextInput = Nd4j.zeros(numSamples,iter.inputColumns());
-			//Output is a probability distribution. Sample from this for each example we want to generate, and add it to the new input
-			for( int s=0; s<numSamples; s++ ){
-				double[] outputProbDistribution = new double[iter.totalOutcomes()];
-				for( int j=0; j<outputProbDistribution.length; j++ ) outputProbDistribution[j] = output.getDouble(s,j);
-				int sampledCharacterIdx = sampleFromDistribution(outputProbDistribution,rng);
-				//System.out.println(Arrays.toString(outputProbDistribution));
-				
-				nextInput.putScalar(new int[]{s,sampledCharacterIdx}, 1.0f);		//Prepare next time step input
-				sb[s].append(iter.convertIndexToCharacter(sampledCharacterIdx));	//Add sampled character to StringBuilder (human readable output)
-			}
-			
-			output = net.rnnTimeStep(nextInput);	//Do one time step of forward pass
-		}
-		
-		String[] out = new String[numSamples];
-		for( int i=0; i<numSamples; i++ ) out[i] = sb[i].toString();
-		return out;
+		File docRoot = new File("D:/MyEclipse/iaprtc12/annotations_complete_eng");
+		String fileLocation = "D:/MyEclipse/iaprtc12/images";
+    	for (File docFolder : docRoot.listFiles()){
+    		System.out.println("read file list : " + "[" + docFolder.getPath() + "]");
+    		for(File xmlFile : docFolder.listFiles()){
+    			if (xmlFile.getName().endsWith("eng") == false) continue;
+    			DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
+    			Document document = documentBuilder.parse(xmlFile);
+    			String imageDescription = document.getElementsByTagName("DESCRIPTION").item(0).getTextContent();
+    			imageDescription = imageDescription.replaceAll("[\n]+", "");
+    			String imagePath = "D:/MyEclipse/iaprtc12/" + document.getElementsByTagName("IMAGE").item(0).getTextContent();
+    			String imageDescriptionPath = imagePath.replaceAll(".jpg", ".des");
+    			OutputStreamWriter imageDescriptionFile = new OutputStreamWriter(new FileOutputStream(new File(imageDescriptionPath)));
+    			imageDescriptionFile.write(imageDescription + "\n");
+    			imageDescriptionFile.close();
+    		}
+    	}
+
+    	char[] validCharacters = ImageIterator.getMinimalCharacterSet();	//Which characters are allowed? Others will be removed
+		return new Iaprtc12DescriptionIterator(fileLocation, Charset.forName("UTF-8"),
+				miniBatchSize, exampleLength, numExamplesToFetch, examplesPerEpoch, validCharacters, new Random(12345));
 	}
 	
 	/** Given a probability distribution over discrete classes, sample from the distribution
