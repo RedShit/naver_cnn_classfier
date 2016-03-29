@@ -17,7 +17,6 @@ import java.util.Scanner;
 import org.canova.image.loader.LFWLoader;
 import org.deeplearning4j.datasets.iterator.DataSetIterator;
 import org.deeplearning4j.datasets.iterator.impl.LFWDataSetIterator;
-import org.deeplearning4j.examples.convolution.CNNLFWExample;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
@@ -41,7 +40,7 @@ import org.slf4j.LoggerFactory;
 
 public class Image2Vector {
 	
-	private static final Logger log = LoggerFactory.getLogger(CNNLFWExample.class);
+	private static final Logger log = LoggerFactory.getLogger(Image2Vector.class);
 	
 	@SuppressWarnings("deprecation")
 	public static void main(String[] args) throws IOException {

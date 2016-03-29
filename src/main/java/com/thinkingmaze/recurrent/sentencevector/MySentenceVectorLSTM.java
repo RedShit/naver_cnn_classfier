@@ -12,6 +12,9 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.nd4j.linalg.lossfunctions.LossFunctions.LossFunction;
 
+import com.thinkingmaze.multilayer.MyMultiLayerNetwork;
+import com.thinkingmaze.nn.conf.layers.GravesLSTMDenseLayer;
+
 public class MySentenceVectorLSTM {
 	private int height;
     private int width;
@@ -35,9 +38,7 @@ public class MySentenceVectorLSTM {
         this.sentenceVectorSize = sentenceVectorSize;
         this.sentenceNumber = sentenceNumber;
     }
-
-    public MultiLayerConfiguration conf() {
-
+    public MultiLayerConfiguration conf() throws InstantiationException, IllegalAccessException {
         // TODO split and link kernel maps on GPUs - 2nd, 4th, 5th convolution should only connect maps on the same gpu, 3rd connects to all in 2nd
         MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
 				.optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT).iterations(1)
@@ -47,7 +48,7 @@ public class MySentenceVectorLSTM {
 				.regularization(true)
 				.l2(0.001)
 				.list(4)
-				.layer(0, new DenseLayer.Builder().nIn(sentenceNumber).nOut(sentenceVectorSize)
+				.layer(0, new GravesLSTMDenseLayer.Builder().nIn(sentenceNumber).nOut(sentenceVectorSize)
                         .weightInit(WeightInit.XAVIER)
                         .activation("tanh")
                         .build())
@@ -69,8 +70,8 @@ public class MySentenceVectorLSTM {
         return conf;
     }
 
-    public MultiLayerNetwork init(){
-        MultiLayerNetwork model = new MultiLayerNetwork(conf());
+    public MultiLayerNetwork init() throws InstantiationException, IllegalAccessException{
+        MultiLayerNetwork model = new MyMultiLayerNetwork(conf());
         model.init();
         return model;
 

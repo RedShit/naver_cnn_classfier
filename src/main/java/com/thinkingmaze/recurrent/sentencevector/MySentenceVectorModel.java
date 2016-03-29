@@ -46,10 +46,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 
-import com.thinkingmaze.imagedocument.Iaprtc12RecordReader;
 import com.thinkingmaze.imagedocument.Image2Text;
 import com.thinkingmaze.imagedocument.ImageIterator;
-import com.thinkingmaze.imagedocument.NaverNet5;
 
 public class MySentenceVectorModel {
 	private static final Logger log = LoggerFactory.getLogger(Image2Text.class);
@@ -72,10 +70,9 @@ public class MySentenceVectorModel {
     	
         System.out.println("Load data....");
         Iaprtc12DescriptionIterator iter = getShakespeareIterator(batchSize, exampleLength, numExamplesToFetch, examplesPerEpoch);
-    	
     	System.out.println("Build model....");
         MultiLayerNetwork model = new MySentenceVectorLSTM(width, height, nChannels, 
-        		iter.inputColumns(), seed, iterations, iter.numExamples()+iter.inputColumns(), 100).init();
+        		iter.inputColumns(), seed, iterations, 100, exampleLength+iter.inputColumns()).init();
         
         System.out.println("Train model....");
         model.setListeners(Collections.singletonList((IterationListener) new ScoreIterationListener(1)));
@@ -174,21 +171,21 @@ public class MySentenceVectorModel {
 		//https://www.gutenberg.org/ebooks/100
 		File docRoot = new File("D:/MyEclipse/iaprtc12/annotations_complete_eng");
 		String fileLocation = "D:/MyEclipse/iaprtc12/images";
-    	for (File docFolder : docRoot.listFiles()){
-    		System.out.println("read file list : " + "[" + docFolder.getPath() + "]");
-    		for(File xmlFile : docFolder.listFiles()){
-    			if (xmlFile.getName().endsWith("eng") == false) continue;
-    			DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
-    			Document document = documentBuilder.parse(xmlFile);
-    			String imageDescription = document.getElementsByTagName("DESCRIPTION").item(0).getTextContent();
-    			imageDescription = imageDescription.replaceAll("[\n]+", "");
-    			String imagePath = "D:/MyEclipse/iaprtc12/" + document.getElementsByTagName("IMAGE").item(0).getTextContent();
-    			String imageDescriptionPath = imagePath.replaceAll(".jpg", ".des");
-    			OutputStreamWriter imageDescriptionFile = new OutputStreamWriter(new FileOutputStream(new File(imageDescriptionPath)));
-    			imageDescriptionFile.write(imageDescription + "\n");
-    			imageDescriptionFile.close();
-    		}
-    	}
+//    	for (File docFolder : docRoot.listFiles()){
+//    		System.out.println("read file list : " + "[" + docFolder.getPath() + "]");
+//    		for(File xmlFile : docFolder.listFiles()){
+//    			if (xmlFile.getName().endsWith("eng") == false) continue;
+//    			DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
+//    			Document document = documentBuilder.parse(xmlFile);
+//    			String imageDescription = document.getElementsByTagName("DESCRIPTION").item(0).getTextContent();
+//    			imageDescription = imageDescription.replaceAll("[\n]+", "");
+//    			String imagePath = "D:/MyEclipse/iaprtc12/" + document.getElementsByTagName("IMAGE").item(0).getTextContent();
+//    			String imageDescriptionPath = imagePath.replaceAll(".jpg", ".des");
+//    			OutputStreamWriter imageDescriptionFile = new OutputStreamWriter(new FileOutputStream(new File(imageDescriptionPath)));
+//    			imageDescriptionFile.write(imageDescription + "\n");
+//    			imageDescriptionFile.close();
+//    		}
+//    	}
 
     	char[] validCharacters = ImageIterator.getMinimalCharacterSet();	//Which characters are allowed? Others will be removed
 		return new Iaprtc12DescriptionIterator(fileLocation, Charset.forName("UTF-8"),

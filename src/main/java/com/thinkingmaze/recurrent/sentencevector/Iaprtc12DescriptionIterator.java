@@ -44,8 +44,8 @@ public class Iaprtc12DescriptionIterator implements DataSetIterator {
 	
 	private RecordReader recordReader;
 	private ArrayList<List<Writable>> currList;
-	private int width = 28;
-	private int height = 28;
+	private int width = 1;
+	private int height = 1;
 	private int channels = 3;
 	private boolean appendLabel = false;
 	private final String regexPattern = ".[#]+";
