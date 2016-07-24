@@ -46,7 +46,7 @@ public class Iaprtc12DescriptionIterator implements DataSetIterator {
 	private ArrayList<List<Writable>> currList;
 	private int width = 1;
 	private int height = 1;
-	private int channels = 3;
+	private int channels = 1;
 	private boolean appendLabel = false;
 	private final String regexPattern = ".[#]+";
 	public static final String[] ALLOWED_FORMATS = {"tif", "jpg", "png", "jpeg", "bmp", "JPEG", "JPG", "TIF", "PNG"};

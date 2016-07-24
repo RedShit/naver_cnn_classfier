@@ -16,7 +16,7 @@ public class CifarLoader extends BaseImageLoader{
 	private final boolean appendLabel = true;
 	private final String regexPattern = ".[#]+";
 	
-	protected String localDir = "D:\\MyEclipse\\iaprtc12\\iaprtc12";
+	protected String localDir = "D:/MyEclipse/iaprtc12/images";
 	protected File fullDir = new File(localDir);
 	protected int numExamples = NUM_IMAGES;
     protected int numLabels = NUM_LABELS;

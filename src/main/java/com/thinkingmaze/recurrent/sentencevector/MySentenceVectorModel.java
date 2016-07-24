@@ -63,9 +63,9 @@ public class MySentenceVectorModel {
         int epochs = 50;
         int iterations = 1;
         int seed = 2234;
-        int exampleLength = 200;
-        int examplesPerEpoch = batchSize * 1000;
-        int numExamplesToFetch = 80;
+        int exampleLength = 10000;
+        int examplesPerEpoch = batchSize * 500;
+        int numExamplesToFetch = 20;
         int numSamples = 1;
     	
         System.out.println("Load data....");
@@ -116,7 +116,7 @@ public class MySentenceVectorModel {
 		INDArray initializationLabel = (INDArray) generationInitialization.getLabels();
 		int imagesToSample = generationInitialization.getLabels().size(0);
 		int numSamples = generationInitialization.getLabels().size(2);
-		int featureLength = 77;
+		int featureLength = initializationInput.shape()[1];
 		
 		StringBuilder[] sb = new StringBuilder[imagesToSample*2];
 		for( int i=0; i<imagesToSample*2; i++ ) sb[i] = new StringBuilder();
@@ -126,6 +126,7 @@ public class MySentenceVectorModel {
 			for(int j = 0; j < featureLength; j++){
 				input.putScalar(new int[]{0,j}, initializationInput.getDouble(i, j, 0));
 			}
+			//System.out.println(input);
 			model.rnnClearPreviousState();
 			INDArray output = model.rnnTimeStep(input);
 			//Set up next input (single time step) by sampling from previous output
@@ -171,21 +172,21 @@ public class MySentenceVectorModel {
 		//https://www.gutenberg.org/ebooks/100
 		File docRoot = new File("D:/MyEclipse/iaprtc12/annotations_complete_eng");
 		String fileLocation = "D:/MyEclipse/iaprtc12/images";
-//    	for (File docFolder : docRoot.listFiles()){
-//    		System.out.println("read file list : " + "[" + docFolder.getPath() + "]");
-//    		for(File xmlFile : docFolder.listFiles()){
-//    			if (xmlFile.getName().endsWith("eng") == false) continue;
-//    			DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
-//    			Document document = documentBuilder.parse(xmlFile);
-//    			String imageDescription = document.getElementsByTagName("DESCRIPTION").item(0).getTextContent();
-//    			imageDescription = imageDescription.replaceAll("[\n]+", "");
-//    			String imagePath = "D:/MyEclipse/iaprtc12/" + document.getElementsByTagName("IMAGE").item(0).getTextContent();
-//    			String imageDescriptionPath = imagePath.replaceAll(".jpg", ".des");
-//    			OutputStreamWriter imageDescriptionFile = new OutputStreamWriter(new FileOutputStream(new File(imageDescriptionPath)));
-//    			imageDescriptionFile.write(imageDescription + "\n");
-//    			imageDescriptionFile.close();
-//    		}
-//    	}
+    	for (File docFolder : docRoot.listFiles()){
+    		System.out.println("read file list : " + "[" + docFolder.getPath() + "]");
+    		for(File xmlFile : docFolder.listFiles()){
+    			if (xmlFile.getName().endsWith("eng") == false) continue;
+    			DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
+    			Document document = documentBuilder.parse(xmlFile);
+    			String imageDescription = document.getElementsByTagName("DESCRIPTION").item(0).getTextContent();
+    			imageDescription = imageDescription.replaceAll("[\n]+", "");
+    			String imagePath = "D:/MyEclipse/iaprtc12/" + document.getElementsByTagName("IMAGE").item(0).getTextContent();
+    			String imageDescriptionPath = imagePath.replaceAll(".jpg", ".des");
+    			OutputStreamWriter imageDescriptionFile = new OutputStreamWriter(new FileOutputStream(new File(imageDescriptionPath)));
+    			imageDescriptionFile.write(imageDescription + "\n");
+    			imageDescriptionFile.close();
+    		}
+    	}
 
     	char[] validCharacters = ImageIterator.getMinimalCharacterSet();	//Which characters are allowed? Others will be removed
 		return new Iaprtc12DescriptionIterator(fileLocation, Charset.forName("UTF-8"),
